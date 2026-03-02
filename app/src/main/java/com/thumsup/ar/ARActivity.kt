@@ -95,10 +95,9 @@ class ARActivity : AppCompatActivity() {
                 return
             }
 
-            session?.let { createdSession ->
-                configureSession(createdSession)
-                arFragment.arSceneView.setupSession(createdSession)
-            }
+            val createdSession = session ?: return
+            configureSession(createdSession)
+            arFragment.setSession(createdSession)
         }
 
         runCatching {

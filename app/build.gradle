@@ -48,5 +48,5 @@ dependencies {
 
     implementation 'com.google.ar:core:1.48.0'
     implementation 'com.gorisse.thomas.sceneform:sceneform:1.23.0'
-    implementation 'com.gorisse.thomas.sceneform:sceneform-ux:1.23.0'
+    implementation 'com.gorisse.thomas.sceneform:ux:1.23.0'
 }
