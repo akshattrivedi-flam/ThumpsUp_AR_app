@@ -30,14 +30,13 @@ jobs:
         run: |
           sdkmanager --install "platform-tools" "platforms;android-35" "build-tools;35.0.0"
 
-      - name: Build debug APK
-        run: ./gradlew assembleDebug --no-daemon
+      - name: Build release APK
+        run: ./gradlew assembleRelease --no-daemon
 
       - name: Prepare APK artifact
         run: |
-          TAG_NAME="${GITHUB_REF_NAME}"
-          APK_SRC="app/build/outputs/apk/debug/app-debug.apk"
-          APK_DST="ThumsUp_AR_App-${TAG_NAME}-debug.apk"
+          APK_SRC="app/build/outputs/apk/release/app-release.apk"
+          APK_DST="ThumsUP-AR.apk"
           cp "$APK_SRC" "$APK_DST"
           echo "APK_PATH=$APK_DST" >> "$GITHUB_ENV"
 
@@ -46,4 +45,5 @@ jobs:
         with:
           tag_name: ${{ github.ref_name }}
           files: ${{ env.APK_PATH }}
+          overwrite_files: true
           generate_release_notes: true

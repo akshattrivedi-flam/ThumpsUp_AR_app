@@ -14,12 +14,20 @@ android {
         versionCode 1
         versionName "1.0"
 
+        // Limit to arm64 for smaller APK output.
+        ndk {
+            abiFilters 'arm64-v8a'
+        }
+
         testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
     }
 
     buildTypes {
         release {
-            minifyEnabled false
+            // Debug signing only for CI installable artifact; replace with real signing in production.
+            signingConfig signingConfigs.debug
+            minifyEnabled true
+            shrinkResources true
             proguardFiles getDefaultProguardFile('proguard-android-optimize.txt'), 'proguard-rules.pro'
         }
     }
