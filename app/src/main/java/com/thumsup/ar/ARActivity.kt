@@ -4,6 +4,8 @@ import android.Manifest
 import android.content.pm.PackageManager
 import android.net.Uri
 import android.os.Bundle
+import android.os.Handler
+import android.os.Looper
 import android.widget.MediaController
 import android.widget.Toast
 import androidx.activity.result.contract.ActivityResultContracts
@@ -15,6 +17,12 @@ import com.google.ar.core.AugmentedImage
 import com.google.ar.core.Config
 import com.google.ar.core.Session
 import com.google.ar.core.TrackingState
+import com.google.ar.core.exceptions.CameraNotAvailableException
+import com.google.ar.core.exceptions.UnavailableApkTooOldException
+import com.google.ar.core.exceptions.UnavailableArcoreNotInstalledException
+import com.google.ar.core.exceptions.UnavailableDeviceNotCompatibleException
+import com.google.ar.core.exceptions.UnavailableSdkTooOldException
+import com.google.ar.core.exceptions.UnavailableUserDeclinedInstallationException
 import com.google.ar.sceneform.AnchorNode
 import com.google.ar.sceneform.FrameTime
 import com.google.ar.sceneform.rendering.ModelRenderable
@@ -30,6 +38,7 @@ class ARActivity : AppCompatActivity() {
     private var cylinderRenderable: ModelRenderable? = null
     private val anchoredNodes = mutableMapOf<Int, AnchorNode>()
     private var isVideoPrepared = false
+    private var hasRetriedSessionResume = false
 
     private val permissionLauncher = registerForActivityResult(
         ActivityResultContracts.RequestPermission()
@@ -64,6 +73,7 @@ class ARActivity : AppCompatActivity() {
 
     override fun onPause() {
         super.onPause()
+        hasRetriedSessionResume = false
         if (isVideoPrepared) {
             binding.videoOverlayView.pause()
         }
@@ -130,8 +140,28 @@ class ARActivity : AppCompatActivity() {
         if (session == null) {
             session = try {
                 Session(this)
-            } catch (_: Exception) {
+            } catch (e: UnavailableArcoreNotInstalledException) {
                 Toast.makeText(this, getString(R.string.error_arcore_not_supported), Toast.LENGTH_LONG).show()
+                finish()
+                return
+            } catch (e: UnavailableUserDeclinedInstallationException) {
+                Toast.makeText(this, getString(R.string.error_arcore_install_declined), Toast.LENGTH_LONG).show()
+                finish()
+                return
+            } catch (e: UnavailableApkTooOldException) {
+                Toast.makeText(this, getString(R.string.error_arcore_update_required), Toast.LENGTH_LONG).show()
+                finish()
+                return
+            } catch (e: UnavailableSdkTooOldException) {
+                Toast.makeText(this, getString(R.string.error_app_update_required), Toast.LENGTH_LONG).show()
+                finish()
+                return
+            } catch (e: UnavailableDeviceNotCompatibleException) {
+                Toast.makeText(this, getString(R.string.error_arcore_not_supported), Toast.LENGTH_LONG).show()
+                finish()
+                return
+            } catch (_: Exception) {
+                Toast.makeText(this, getString(R.string.error_failed_start_ar_session), Toast.LENGTH_LONG).show()
                 finish()
                 return
             }
@@ -144,8 +174,23 @@ class ARActivity : AppCompatActivity() {
         runCatching {
             session?.resume()
             arFragment.arSceneView.resume()
-        }.onFailure {
-            Toast.makeText(this, getString(R.string.error_arcore_not_supported), Toast.LENGTH_LONG).show()
+        }.onFailure { throwable ->
+            if (throwable is CameraNotAvailableException && !hasRetriedSessionResume) {
+                hasRetriedSessionResume = true
+                Handler(Looper.getMainLooper()).postDelayed({
+                    if (!isFinishing && !isDestroyed) {
+                        resumeArSession()
+                    }
+                }, 300L)
+                return@onFailure
+            }
+
+            val messageRes = if (throwable is CameraNotAvailableException) {
+                R.string.error_camera_busy
+            } else {
+                R.string.error_failed_start_ar_session
+            }
+            Toast.makeText(this, getString(messageRes), Toast.LENGTH_LONG).show()
             finish()
         }
     }

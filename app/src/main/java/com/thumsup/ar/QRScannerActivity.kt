@@ -4,6 +4,8 @@ import android.Manifest
 import android.content.Intent
 import android.content.pm.PackageManager
 import android.os.Bundle
+import android.os.Handler
+import android.os.Looper
 import android.widget.Toast
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.appcompat.app.AppCompatActivity
@@ -180,8 +182,13 @@ class QRScannerActivity : AppCompatActivity() {
     }
 
     private fun launchAr(product: String?) {
-        startActivity(DeepLinkHandler.buildArIntent(this, product))
-        finish()
+        hasHandledScan.set(true)
+        runCatching { ProcessCameraProvider.getInstance(this).get().unbindAll() }
+        Handler(Looper.getMainLooper()).postDelayed({
+            if (isFinishing || isDestroyed) return@postDelayed
+            startActivity(DeepLinkHandler.buildArIntent(this, product))
+            finish()
+        }, 220L)
     }
 
     private fun hasCameraPermission(): Boolean {

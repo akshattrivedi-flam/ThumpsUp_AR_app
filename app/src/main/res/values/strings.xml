@@ -6,6 +6,11 @@
     <string name="tracking_initial">Tracking: Initializing…</string>
     <string name="error_camera_permission">Camera permission is required for AR.</string>
     <string name="error_arcore_not_supported">ARCore is not supported on this device.</string>
+    <string name="error_arcore_install_declined">ARCore install was declined.</string>
+    <string name="error_arcore_update_required">Please update ARCore and try again.</string>
+    <string name="error_app_update_required">Please update the app and try again.</string>
+    <string name="error_camera_busy">Camera is busy. Please reopen the AR experience.</string>
+    <string name="error_failed_start_ar_session">Failed to start AR session.</string>
     <string name="error_invalid_link">Invalid QR or deep link.</string>
     <string name="error_video_overlay">Unable to play overlay video.</string>
     <string name="scan_qr_code">Scan the QR code on the can</string>
