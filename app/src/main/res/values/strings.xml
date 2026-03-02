@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">ThumsUp AR</string>
+    <string name="main_title">Scan the campaign QR to launch AR, or start manually.</string>
+    <string name="start_ar">Start AR</string>
+    <string name="tracking_initial">Tracking: Initializing…</string>
+    <string name="error_camera_permission">Camera permission is required for AR.</string>
+    <string name="error_arcore_not_supported">ARCore is not supported on this device.</string>
+    <string name="error_invalid_link">Invalid deep link. Missing product parameter.</string>
+</resources>
