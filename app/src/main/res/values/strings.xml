@@ -6,5 +6,9 @@
     <string name="tracking_initial">Tracking: Initializing…</string>
     <string name="error_camera_permission">Camera permission is required for AR.</string>
     <string name="error_arcore_not_supported">ARCore is not supported on this device.</string>
-    <string name="error_invalid_link">Invalid deep link. Missing product parameter.</string>
+    <string name="error_invalid_link">Invalid QR or deep link.</string>
+    <string name="error_video_overlay">Unable to play overlay video.</string>
+    <string name="scan_qr_code">Scan the QR code on the can</string>
+    <string name="play_default_experience">Play Default Experience</string>
+    <string name="flash_toggle">Toggle flash</string>
 </resources>
