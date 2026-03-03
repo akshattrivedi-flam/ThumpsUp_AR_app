@@ -4,25 +4,14 @@ import android.Manifest
 import android.content.pm.PackageManager
 import android.net.Uri
 import android.os.Bundle
-import android.os.Handler
-import android.os.Looper
 import android.widget.MediaController
 import android.widget.Toast
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.appcompat.app.AppCompatActivity
 import androidx.core.content.ContextCompat
 import com.google.ar.core.Anchor
-import com.google.ar.core.ArCoreApk
 import com.google.ar.core.AugmentedImage
-import com.google.ar.core.Config
-import com.google.ar.core.Session
 import com.google.ar.core.TrackingState
-import com.google.ar.core.exceptions.CameraNotAvailableException
-import com.google.ar.core.exceptions.UnavailableApkTooOldException
-import com.google.ar.core.exceptions.UnavailableArcoreNotInstalledException
-import com.google.ar.core.exceptions.UnavailableDeviceNotCompatibleException
-import com.google.ar.core.exceptions.UnavailableSdkTooOldException
-import com.google.ar.core.exceptions.UnavailableUserDeclinedInstallationException
 import com.google.ar.sceneform.AnchorNode
 import com.google.ar.sceneform.FrameTime
 import com.google.ar.sceneform.rendering.ModelRenderable
@@ -33,24 +22,14 @@ class ARActivity : AppCompatActivity() {
     private lateinit var binding: ActivityArBinding
     private lateinit var arFragment: ARFragment
 
-    private var session: Session? = null
-    private var installRequested = false
     private var cylinderRenderable: ModelRenderable? = null
     private val anchoredNodes = mutableMapOf<Int, AnchorNode>()
     private var isVideoPrepared = false
-    private var sessionResumeRetryCount = 0
-    private var isResumingSession = false
-    private var hasActiveSession = false
-    private var isSceneViewResumed = false
-    private var isClosing = false
-    private val mainHandler = Handler(Looper.getMainLooper())
 
     private val permissionLauncher = registerForActivityResult(
         ActivityResultContracts.RequestPermission()
     ) { granted ->
-        if (granted) {
-            resumeArSession()
-        } else {
+        if (!granted) {
             Toast.makeText(this, getString(R.string.error_camera_permission), Toast.LENGTH_LONG).show()
             returnToScanner()
         }
@@ -78,19 +57,13 @@ class ARActivity : AppCompatActivity() {
 
     override fun onPause() {
         super.onPause()
-        isClosing = true
-        sessionResumeRetryCount = 0
-        isResumingSession = false
-        mainHandler.removeCallbacksAndMessages(null)
         if (isVideoPrepared) {
             binding.videoOverlayView.pause()
         }
-        pauseArSessionSafely()
     }
 
     override fun onResume() {
         super.onResume()
-        isClosing = false
         if (isVideoPrepared && !binding.videoOverlayView.isPlaying) {
             binding.videoOverlayView.start()
         }
@@ -98,15 +71,9 @@ class ARActivity : AppCompatActivity() {
             permissionLauncher.launch(Manifest.permission.CAMERA)
             return
         }
-        resumeArSession()
     }
 
     override fun onDestroy() {
-        isClosing = true
-        sessionResumeRetryCount = 0
-        isResumingSession = false
-        mainHandler.removeCallbacksAndMessages(null)
-        pauseArSessionSafely()
         binding.videoOverlayView.stopPlayback()
         if (::arFragment.isInitialized) {
             arFragment.arSceneView.scene.removeOnUpdateListener(::onUpdateFrame)
@@ -119,8 +86,6 @@ class ARActivity : AppCompatActivity() {
         if (::arFragment.isInitialized) {
             runCatching { arFragment.arSceneView.destroy() }
         }
-        runCatching { session?.close() }
-        session = null
         super.onDestroy()
     }
 
@@ -142,133 +107,12 @@ class ARActivity : AppCompatActivity() {
         }
     }
 
-    private fun resumeArSession() {
-        if (isResumingSession || isClosing || isFinishing || isDestroyed) return
-        isResumingSession = true
-
-        val installStatus = runCatching {
-            ArCoreApk.getInstance().requestInstall(this, !installRequested)
-        }.getOrElse {
-            Toast.makeText(this, getString(R.string.error_arcore_not_supported), Toast.LENGTH_LONG).show()
-            isResumingSession = false
-            returnToScanner()
-            return
-        }
-        if (installStatus == ArCoreApk.InstallStatus.INSTALL_REQUESTED) {
-            installRequested = true
-            isResumingSession = false
-            return
-        }
-
-        if (session == null) {
-            session = try {
-                Session(this)
-            } catch (e: UnavailableArcoreNotInstalledException) {
-                Toast.makeText(this, getString(R.string.error_arcore_not_supported), Toast.LENGTH_LONG).show()
-                isResumingSession = false
-                returnToScanner()
-                return
-            } catch (e: UnavailableUserDeclinedInstallationException) {
-                Toast.makeText(this, getString(R.string.error_arcore_install_declined), Toast.LENGTH_LONG).show()
-                isResumingSession = false
-                returnToScanner()
-                return
-            } catch (e: UnavailableApkTooOldException) {
-                Toast.makeText(this, getString(R.string.error_arcore_update_required), Toast.LENGTH_LONG).show()
-                isResumingSession = false
-                returnToScanner()
-                return
-            } catch (e: UnavailableSdkTooOldException) {
-                Toast.makeText(this, getString(R.string.error_app_update_required), Toast.LENGTH_LONG).show()
-                isResumingSession = false
-                returnToScanner()
-                return
-            } catch (e: UnavailableDeviceNotCompatibleException) {
-                Toast.makeText(this, getString(R.string.error_arcore_not_supported), Toast.LENGTH_LONG).show()
-                isResumingSession = false
-                returnToScanner()
-                return
-            } catch (_: Exception) {
-                Toast.makeText(this, getString(R.string.error_failed_start_ar_session), Toast.LENGTH_LONG).show()
-                isResumingSession = false
-                returnToScanner()
-                return
-            }
-
-            val createdSession = session ?: run {
-                isResumingSession = false
-                return
-            }
-            configureSession(createdSession)
-            arFragment.setSession(createdSession)
-        }
-
-        runCatching {
-            val currentSession = session ?: error("AR session is null while resuming")
-            if (!hasActiveSession) {
-                currentSession.resume()
-                hasActiveSession = true
-            }
-            if (!isSceneViewResumed) {
-                arFragment.arSceneView.resume()
-                isSceneViewResumed = true
-            }
-            sessionResumeRetryCount = 0
-            isResumingSession = false
-        }.onFailure { throwable ->
-            hasActiveSession = false
-            isSceneViewResumed = false
-            if (throwable is CameraNotAvailableException && sessionResumeRetryCount < 3) {
-                sessionResumeRetryCount += 1
-                isResumingSession = false
-                mainHandler.postDelayed({
-                    if (!isClosing && !isFinishing && !isDestroyed) {
-                        resumeArSession()
-                    }
-                }, (250L * sessionResumeRetryCount))
-                return@onFailure
-            }
-
-            val messageRes = if (throwable is CameraNotAvailableException) {
-                R.string.error_camera_busy
-            } else {
-                R.string.error_failed_start_ar_session
-            }
-            Toast.makeText(this, getString(messageRes), Toast.LENGTH_LONG).show()
-            isResumingSession = false
-            returnToScanner()
-        }
-    }
-
     private fun returnToScanner() {
         if (isFinishing || isDestroyed) return
         startActivity(android.content.Intent(this, QRScannerActivity::class.java).apply {
             addFlags(android.content.Intent.FLAG_ACTIVITY_CLEAR_TOP or android.content.Intent.FLAG_ACTIVITY_SINGLE_TOP)
         })
         finish()
-    }
-
-    private fun pauseArSessionSafely() {
-        if (::arFragment.isInitialized) {
-            if (isSceneViewResumed) {
-                runCatching { arFragment.arSceneView.pause() }
-                isSceneViewResumed = false
-            }
-        }
-        if (hasActiveSession) {
-            runCatching { session?.pause() }
-            hasActiveSession = false
-        }
-    }
-
-    private fun configureSession(arSession: Session) {
-        val config = Config(arSession).apply {
-            focusMode = Config.FocusMode.AUTO
-            updateMode = Config.UpdateMode.LATEST_CAMERA_IMAGE
-            augmentedImageDatabase = ImageDatabaseHelper.loadAugmentedImageDatabase(this@ARActivity, arSession)
-            planeFindingMode = Config.PlaneFindingMode.DISABLED
-        }
-        arSession.configure(config)
     }
 
     private fun onUpdateFrame(@Suppress("UNUSED_PARAMETER") frameTime: FrameTime) {
