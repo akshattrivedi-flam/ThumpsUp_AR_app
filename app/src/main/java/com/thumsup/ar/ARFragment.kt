@@ -26,11 +26,13 @@ class ARFragment : ArFragment() {
             planeFindingMode = Config.PlaneFindingMode.DISABLED
             focusMode = Config.FocusMode.AUTO
             updateMode = Config.UpdateMode.LATEST_CAMERA_IMAGE
-            augmentedImageDatabase = runCatching {
+            val imageDb = runCatching {
                 ImageDatabaseHelper.loadAugmentedImageDatabase(requireContext(), session)
-            }.getOrElse {
+            }.getOrNull()
+            if (imageDb != null) {
+                augmentedImageDatabase = imageDb
+            } else {
                 Toast.makeText(requireContext(), R.string.error_failed_start_ar_session, Toast.LENGTH_LONG).show()
-                null
             }
         }
     }
