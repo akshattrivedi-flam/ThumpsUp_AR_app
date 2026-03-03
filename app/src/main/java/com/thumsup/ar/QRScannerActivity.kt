@@ -42,6 +42,7 @@ class QRScannerActivity : AppCompatActivity() {
     private var camera: Camera? = null
     private val isProcessingFrame = AtomicBoolean(false)
     private val hasHandledScan = AtomicBoolean(false)
+    private val isLaunchingAr = AtomicBoolean(false)
 
     private val permissionLauncher = registerForActivityResult(
         ActivityResultContracts.RequestPermission()
@@ -77,6 +78,7 @@ class QRScannerActivity : AppCompatActivity() {
 
     override fun onResume() {
         super.onResume()
+        if (isLaunchingAr.get()) return
         hasHandledScan.set(false)
         if (hasCameraPermission()) {
             startCamera()
@@ -87,7 +89,11 @@ class QRScannerActivity : AppCompatActivity() {
 
     override fun onPause() {
         super.onPause()
-        runCatching { ProcessCameraProvider.getInstance(this).get().unbindAll() }
+        runCatching {
+            if (::cameraProviderFuture.isInitialized) {
+                cameraProviderFuture.get().unbindAll()
+            }
+        }
     }
 
     override fun onNewIntent(intent: Intent) {
@@ -115,6 +121,7 @@ class QRScannerActivity : AppCompatActivity() {
     private fun startCamera() {
         cameraProviderFuture = ProcessCameraProvider.getInstance(this)
         cameraProviderFuture.addListener({
+            if (isLaunchingAr.get() || isFinishing || isDestroyed) return@addListener
             val cameraProvider = cameraProviderFuture.get()
 
             val preview = Preview.Builder().build().also {
@@ -130,13 +137,17 @@ class QRScannerActivity : AppCompatActivity() {
 
             val cameraSelector = CameraSelector.DEFAULT_BACK_CAMERA
 
-            cameraProvider.unbindAll()
-            camera = cameraProvider.bindToLifecycle(
-                this,
-                cameraSelector,
-                preview,
-                imageAnalysis
-            )
+            runCatching {
+                cameraProvider.unbindAll()
+                camera = cameraProvider.bindToLifecycle(
+                    this,
+                    cameraSelector,
+                    preview,
+                    imageAnalysis
+                )
+            }.onFailure {
+                Toast.makeText(this, getString(R.string.error_camera_busy), Toast.LENGTH_SHORT).show()
+            }
         }, ContextCompat.getMainExecutor(this))
     }
 
@@ -183,12 +194,23 @@ class QRScannerActivity : AppCompatActivity() {
 
     private fun launchAr(product: String?) {
         hasHandledScan.set(true)
-        runCatching { ProcessCameraProvider.getInstance(this).get().unbindAll() }
+        isLaunchingAr.set(true)
+        if (::cameraProviderFuture.isInitialized) {
+            cameraProviderFuture.addListener({
+                runCatching { cameraProviderFuture.get().unbindAll() }
+                launchArAfterDelay(product)
+            }, ContextCompat.getMainExecutor(this))
+        } else {
+            launchArAfterDelay(product)
+        }
+    }
+
+    private fun launchArAfterDelay(product: String?) {
         Handler(Looper.getMainLooper()).postDelayed({
             if (isFinishing || isDestroyed) return@postDelayed
             startActivity(DeepLinkHandler.buildArIntent(this, product))
             finish()
-        }, 220L)
+        }, 350L)
     }
 
     private fun hasCameraPermission(): Boolean {
