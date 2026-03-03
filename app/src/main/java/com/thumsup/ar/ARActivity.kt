@@ -201,12 +201,10 @@ class ARActivity : AppCompatActivity() {
             }
             configureSession(createdSession)
             arFragment.setSession(createdSession)
-            runCatching { arFragment.arSceneView.setupSession(createdSession) }
         }
 
         runCatching {
             val currentSession = session ?: error("AR session is null while resuming")
-            arFragment.arSceneView.setupSession(currentSession)
             if (!hasActiveSession) {
                 currentSession.resume()
                 hasActiveSession = true
